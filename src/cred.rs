@@ -84,7 +84,7 @@ impl CredentialApi for Cred {
         let mut username = self.user.clone();
         let mut target_alias = String::new();
         let mut comment = String::new();
-        if let Some(attributes) = self.get_attributes().ok() {
+        if let Ok(attributes) = self.get_attributes() {
             username = attributes["username"].clone();
             target_alias = attributes["target_alias"].clone();
             comment = attributes["comment"].clone();
@@ -94,7 +94,7 @@ impl CredentialApi for Cred {
             &username,
             &target_alias,
             &comment,
-            &secret,
+            secret,
         )
     }
 

@@ -43,7 +43,7 @@ pub fn validate_password(password: &str) -> Result<Vec<u8>> {
     let mut blob = vec![0; blob_u16.len() * 2];
     LittleEndian::write_u16_into(&blob_u16, &mut blob);
     blob_u16.zeroize();
-    return if blob.len() > CRED_MAX_CREDENTIAL_BLOB_SIZE as usize {
+    if blob.len() > CRED_MAX_CREDENTIAL_BLOB_SIZE as usize {
         blob.zeroize();
         Err(Error::TooLong(
             String::from("password encoded as UTF-16"),
@@ -52,7 +52,7 @@ pub fn validate_password(password: &str) -> Result<Vec<u8>> {
     } else {
         // caller will zeroize the blob
         Ok(blob)
-    };
+    }
 }
 
 pub fn validate_secret(secret: &[u8]) -> Result<()> {
