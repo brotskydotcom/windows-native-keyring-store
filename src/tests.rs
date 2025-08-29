@@ -46,7 +46,7 @@ fn generate_random_string_of_len(len: usize) -> String {
 }
 
 fn generate_random_string() -> String {
-    generate_random_string_of_len(12 as usize)
+    generate_random_string_of_len(12usize)
 }
 
 fn generate_random_bytes() -> Vec<u8> {
@@ -286,8 +286,9 @@ fn test_create_then_move() {
 #[test]
 fn test_simultaneous_create_then_move() {
     let mut handles = vec![];
+    let base = generate_random_string();
     for i in 0..10 {
-        let name = format!("{}-{}", generate_random_string(), i);
+        let name = format!("{}-{}", base, i);
         let entry = entry_new(&name, &name);
         let test = move || {
             entry.set_password(&name).unwrap();
@@ -320,10 +321,12 @@ fn test_create_set_then_move() {
 }
 
 #[test]
+#[ignore] // it's clear that setting on one thread and getting on another is not reliable
 fn test_simultaneous_create_set_then_move() {
     let mut handles = vec![];
+    let base = generate_random_string();
     for i in 0..10 {
-        let name = format!("{}-{}", generate_random_string(), i);
+        let name = format!("{}-{}", base, i);
         let entry = entry_new(&name, &name);
         entry.set_password(&name).unwrap();
         let test = move || {
@@ -342,8 +345,9 @@ fn test_simultaneous_create_set_then_move() {
 #[test]
 fn test_simultaneous_independent_create_set() {
     let mut handles = vec![];
+    let base = generate_random_string();
     for i in 0..10 {
-        let name = format!("thread_entry{i}");
+        let name = format!("{base}-{i}");
         let test = move || {
             let entry = entry_new(&name, &name);
             entry.set_password(&name).unwrap();
@@ -376,10 +380,10 @@ fn test_multiple_create_delete_single_thread() {
 #[test]
 fn test_simultaneous_multiple_create_delete_single_thread() {
     let mut handles = vec![];
+    let base = generate_random_string();
     for t in 0..10 {
-        let name = generate_random_string();
+        let name = format!("{base}-{t}");
         let test = move || {
-            let name = format!("{name}-{t}");
             let entry = entry_new(&name, &name);
             let repeats = 10;
             for _i in 0..repeats {

@@ -43,7 +43,7 @@ pub fn validate_password(password: &str) -> Result<Vec<u8>> {
     let mut blob = vec![0; blob_u16.len() * 2];
     LittleEndian::write_u16_into(&blob_u16, &mut blob);
     blob_u16.zeroize();
-    return if blob.len() > CRED_MAX_CREDENTIAL_BLOB_SIZE as usize {
+    if blob.len() > CRED_MAX_CREDENTIAL_BLOB_SIZE as usize {
         blob.zeroize();
         Err(Error::TooLong(
             String::from("password encoded as UTF-16"),
@@ -52,7 +52,7 @@ pub fn validate_password(password: &str) -> Result<Vec<u8>> {
     } else {
         // caller will zeroize the blob
         Ok(blob)
-    };
+    }
 }
 
 pub fn validate_secret(secret: &[u8]) -> Result<()> {
@@ -214,7 +214,7 @@ pub fn extract_secret(credential: &CREDENTIALW) -> Result<Vec<u8>> {
 /// A metadata extractor for use with [extract_from_credential].
 pub fn extract_attributes(credential: &CREDENTIALW) -> Result<HashMap<String, String>> {
     let result = HashMap::from([
-        ("user".to_string(), unsafe {
+        ("username".to_string(), unsafe {
             from_wstr(credential.UserName)
         }),
         ("target_alias".to_string(), unsafe {

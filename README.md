@@ -8,6 +8,10 @@ This library provides a credential store for use with the [keyring ecosystem](ht
 
 To use this keychain-compatible credential store provider, you must take a dependency on the [keyring-core crate](https://crates.io/crates/keyring-core) and on [this crate](https://crates.io/crates/windows-native-keyring-store). Then you can instantiate a credential store and set it as your default credential store as shown in the [sample program](examples/example.rs) in this crate.
 
+## Warning
+
+Tests show that operating on the same entry from different threads does not reliably sequence the operations in the same order they are initiated. (For example, setting a password on one thread and then immediately spawning another to get the password returns a `NoEntry` error on the spawned thread.) So be careful not to access the same entry on multiple threads simultaneously.
+
 ## License
 
 Licensed under either of the following at your discretion:
