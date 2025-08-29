@@ -5,14 +5,15 @@ use std::sync::Arc;
 
 use zeroize::Zeroize;
 
+use keyring_core::api::CredentialApi;
+use keyring_core::attributes::parse_attributes;
+use keyring_core::{Credential, Error as ErrorCode, Result};
+
 use crate::utils::{
     delete_credential, extract_attributes, extract_from_credential, extract_password,
     extract_secret, save_credential, validate_attributes, validate_password, validate_secret,
     validate_target,
 };
-use keyring_core::api::CredentialApi;
-use keyring_core::attributes::parse_attributes;
-use keyring_core::{Credential, Error as ErrorCode, Result};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Cred {
@@ -84,7 +85,7 @@ impl CredentialApi for Cred {
         let mut target_alias = String::new();
         let mut comment = String::new();
         if let Some(attributes) = self.get_attributes().ok() {
-            username = attributes["user"].clone();
+            username = attributes["username"].clone();
             target_alias = attributes["target_alias"].clone();
             comment = attributes["comment"].clone();
         }

@@ -12,7 +12,7 @@ To make this store the default for creation of keyring entries, execute this cod
 keyring_core::set_default_store(windows_native_keyring_store::Store::new().unwrap())
 ```
 
-# Mapping service and user values to credentials
+## Mapping service and user values to credentials
 
 Each entry in keyring is mapped to a _generic credential_ in the Windows Credential Manager.
 The identifier for each credential in Windows is a `target_name` string.  If an entry is created with
@@ -28,7 +28,7 @@ map to the same description (and thus the same credential in the store). If you
 are worried about this, you can avoid it by configuring your store to forbid the
 delimiter string in the service string.
 
-# Attributes
+## Attributes
 
 There are three string attributes that are held on each Windows generic credential:
 `target_alias`, `username`, and `comment`. The `username` attribute will be set
@@ -36,6 +36,15 @@ from the `user` specifier when an entry is created.
 All three attributes can be read and set using the
 [get_attributes](keyring_core::Entry::get_attributes] and
 [update_attributes](keyring_core::Entry::update_attributes) methods.
+
+## Warning
+
+Tests show that operating on the same entry from different threads
+does not reliably sequence the operations in the same order they
+are initiated. (For example, setting a password on one thread and
+then immediately spawning another to get the password returns a
+`NoEntry` error on the spawned thread.) So be careful not to
+access the same entry on multiple threads simultaneously.
 
  */
 

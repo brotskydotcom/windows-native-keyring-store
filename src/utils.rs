@@ -214,7 +214,7 @@ pub fn extract_secret(credential: &CREDENTIALW) -> Result<Vec<u8>> {
 /// A metadata extractor for use with [extract_from_credential].
 pub fn extract_attributes(credential: &CREDENTIALW) -> Result<HashMap<String, String>> {
     let result = HashMap::from([
-        ("user".to_string(), unsafe {
+        ("username".to_string(), unsafe {
             from_wstr(credential.UserName)
         }),
         ("target_alias".to_string(), unsafe {

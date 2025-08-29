@@ -43,12 +43,12 @@ impl Store {
         let prefix = config
             .get("prefix")
             .map(|s| s.as_str())
-            .unwrap_or("keyring:")
+            .unwrap_or("")
             .to_string();
         let divider = config
             .get("divider")
             .map(|s| s.as_str())
-            .unwrap_or("@")
+            .unwrap_or(".")
             .to_string();
         let suffix = config
             .get("suffix")
@@ -134,7 +134,7 @@ impl CredentialStoreApi for Store {
     ///
     /// Since this keystore keeps credentials in kernel memory, they vanish on reboot
     fn persistence(&self) -> CredentialPersistence {
-        CredentialPersistence::UntilReboot
+        CredentialPersistence::UntilDelete
     }
 
     /// See the keychain-core API docs.
