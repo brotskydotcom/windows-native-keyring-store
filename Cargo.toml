@@ -9,16 +9,16 @@ rust-version = "1.85"
 exclude = [".github/"]
 readme = "README.md"
 name = "windows-native-keyring-store"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [[example]]
 name = "example"
 
 [dependencies]
-keyring-core = { version = "0.5"}
+keyring-core = { version = "0.7" }
 byteorder = "1.2"
-windows-sys = { version = "0.60", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
 zeroize = "1.8.1"
 
 [dev-dependencies]
