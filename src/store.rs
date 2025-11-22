@@ -102,14 +102,19 @@ impl CredentialStoreApi for Store {
         user: &str,
         modifiers: Option<&HashMap<&str, &str>>,
     ) -> Result<Entry> {
-        let mods = parse_attributes(&["target"], modifiers)?;
+        let mods = parse_attributes(&["target", "persistence"], modifiers)?;
         let target = mods.get("target").map(|s| s.as_str());
+        let persistence = mods
+            .get("persistence")
+            .map(|s| s.as_str())
+            .unwrap_or("Enterprise");
         let cred = Cred::build_from_specifiers(
             target,
             &self.delimiters,
             self.service_no_divider,
             service,
             user,
+            persistence.parse()?,
         )?;
         Ok(Entry::new_with_credential(Arc::new(cred)))
     }

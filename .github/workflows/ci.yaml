@@ -23,7 +23,7 @@ jobs:
         run: cargo clippy --no-deps --all-targets -- -D warnings
 
       - name: Build and Test
-        run: cargo test --verbose
+        run: cargo test --verbose -- --test-threads 1
 
       - name: Build examples
         run: cargo build --examples --verbose
