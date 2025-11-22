@@ -28,27 +28,54 @@ map to the same description (and thus the same credential in the store). If you
 are worried about this, you can avoid it by configuring your store to forbid the
 delimiter string in the service string.
 
+## Persistence Type
+
+Each generic credential can have one of three persistence types, defined
+precisely in the Windows API
+[here](https://learn.microsoft.com/en-us/windows/win32/api/wincred/ns-wincred-credentialw),
+and represented in this API by the [CredPersist] enumeration values
+[Session](CredPersist::Session), [Local](CredPersist::Local), and
+[Enterprise](CredPersist::Enterprise).
+
+By default, created credentials have [Enterprise](CredPersist::Enterprise) persistence,
+but you can specify a desired persistence by using the `persistence` modifier at entry
+creation time with a (case-insensitive) value of `Session`, `Local`, or `Enterprise`. Note
+that this type will only be applied when the credential's secret is written; it does not
+control the persistence of an existing credential in the store whose value is read via the entry.
+
+The persistence of an existing credential can be read and updated via its `persistence` attribute.
+Note that updating this attribute on an existing credential does `not` update the remembered
+persistence in the entry used to access that credential. Thus, setting the secret in a credential
+always changes its persistence to match that specified when the entry was created.
+
 ## Attributes
 
-There are three string attributes that are held on each Windows generic credential:
+In addition to the `persistence` attribute mentioned in the last section,
+there are three string attributes that are held on each generic credential:
 `target_alias`, `username`, and `comment`. The `username` attribute will be set
-from the `user` specifier when an entry is created.
-All three attributes can be read and set using the
-[get_attributes](keyring_core::Entry::get_attributes] and
+from the `user` specifier whenever an entry is written.
+All four attributes on existing credentials can be read and set using the
+[get_attributes](keyring_core::Entry::get_attributes) and
 [update_attributes](keyring_core::Entry::update_attributes) methods.
 
-## Warning
+## Warnings
 
 Tests show that operating on the same entry from different threads
 does not reliably sequence the operations in the same order they
 are initiated. (For example, setting a password on one thread and
-then immediately spawning another to get the password returns a
+then immediately spawning another to get the password may return a
 `NoEntry` error on the spawned thread.) So be careful not to
 access the same entry on multiple threads simultaneously.
+
+Tests show that changing a credential's persistence type
+immediately before reading it may cause the read to fail,
+especially if the credential manager is busy on multiple
+threads.
 
  */
 
 pub mod cred;
+pub use cred::CredPersist;
 pub mod store;
 pub use store::Store;
 #[cfg(test)]

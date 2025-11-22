@@ -39,6 +39,13 @@ fn entry_new(service: &str, user: &str) -> Entry {
     })
 }
 
+fn entry_new_with_modifiers(service: &str, user: &str, modifiers: &HashMap<&str, &str>) -> Entry {
+    SET_STORE.call_once(usually_goes_in_main);
+    Entry::new_with_modifiers(service, user, modifiers).unwrap_or_else(|err| {
+        panic!("Couldn't create entry (service: {service}, user: {user}, modifiers: {modifiers:?}): {err:?})")
+    })
+}
+
 fn generate_random_string_of_len(len: usize) -> String {
     use fastrand;
     use std::iter::repeat_with;
@@ -138,6 +145,9 @@ fn test_invalid_parameter() {
     SET_STORE.call_once(usually_goes_in_main);
     let modifiers = HashMap::from([("target", "")]);
     let entry = Entry::new_with_modifiers("service", "user", &modifiers);
+    assert!(matches!(entry, Err(Error::Invalid(_, _))));
+    let entry =
+        Entry::new_with_modifiers("service", "user", &HashMap::from([("persistence", "none")]));
     assert!(matches!(entry, Err(Error::Invalid(_, _))));
     let store: Arc<CredentialStore> =
         Store::new_with_configuration(&HashMap::from([("service_no_divider", "true")])).unwrap();
@@ -388,8 +398,7 @@ fn test_simultaneous_multiple_create_delete_single_thread() {
             let repeats = 10;
             for _i in 0..repeats {
                 entry.set_password(&name).unwrap();
-                let stored_password = entry.get_password().unwrap();
-                assert_eq!(stored_password, name);
+                assert_eq!(entry.get_password().unwrap(), name);
                 entry.delete_credential().unwrap();
                 assert!(matches!(entry.get_password(), Err(Error::NoEntry)));
             }
@@ -403,32 +412,22 @@ fn test_simultaneous_multiple_create_delete_single_thread() {
 
 #[test]
 fn test_credential_persistence() {
-    let store: Arc<CredentialStore> = Store::new().unwrap();
     let name = generate_random_string();
     let persist_local = HashMap::from([("persistence", "local")]);
     let persist_session = HashMap::from([("persistence", "session")]);
-    store
-        .build(
-            &name,
-            "illegal",
-            Some(&HashMap::from([("persistence", "wow")])),
-        )
-        .unwrap_err();
-    let default = store.build(&name, "enterprise", None).unwrap();
+    let default = entry_new(&name, "enterprise");
     default.set_password("enterprise").unwrap();
     assert_eq!(
         default.get_attributes().unwrap()["persistence"],
         "Enterprise"
     );
-    let session = store
-        .build(&name, "session", Some(&persist_session))
-        .unwrap();
+    let session = entry_new_with_modifiers(&name, "session", &persist_session);
     session.set_password("session").unwrap();
     assert_eq!(session.get_attributes().unwrap()["persistence"], "Session");
-    let local = store.build(&name, "local", Some(&persist_local)).unwrap();
+    let local = entry_new_with_modifiers(&name, "local", &persist_local);
     local.set_password("local").unwrap();
     assert_eq!(local.get_attributes().unwrap()["persistence"], "Local");
-    let mock_session = store.build(&name, "session", None).unwrap();
+    let mock_session = entry_new(&name, "session");
     assert_eq!(mock_session.get_password().unwrap(), "session");
     assert_eq!(
         mock_session.get_attributes().unwrap()["persistence"],
@@ -443,6 +442,13 @@ fn test_credential_persistence() {
     assert_eq!(
         session.get_attributes().unwrap()["persistence"],
         "Enterprise"
+    );
+    session.set_password("back to session").unwrap();
+    assert_eq!(session.get_attributes().unwrap()["persistence"], "Session");
+    assert_eq!(mock_session.get_password().unwrap(), "back to session");
+    assert_eq!(
+        mock_session.get_attributes().unwrap()["persistence"],
+        "Session"
     );
     local
         .update_attributes(&HashMap::from([("persistence", "Enterprise")]))
