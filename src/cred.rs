@@ -9,6 +9,7 @@ use keyring_core::api::CredentialApi;
 use keyring_core::attributes::parse_attributes;
 use keyring_core::{Credential, Error as ErrorCode, Result};
 
+pub use crate::utils::CredPersist;
 use crate::utils::{
     delete_credential, extract_attributes, extract_from_credential, extract_password,
     extract_secret, save_credential, validate_attributes, validate_password, validate_secret,
@@ -20,6 +21,7 @@ pub(crate) struct Cred {
     pub target_name: String,
     pub user: String,
     pub specifiers: Option<(String, String)>,
+    pub persistence: CredPersist,
 }
 
 impl Cred {
@@ -34,6 +36,7 @@ impl Cred {
         service_no_dividers: bool,
         service: &str,
         user: &str,
+        persistence: CredPersist,
     ) -> Result<Self> {
         let user = user.to_string();
         let (target_name, specifiers) = match target {
@@ -59,6 +62,7 @@ impl Cred {
             target_name,
             user,
             specifiers,
+            persistence,
         })
     }
 }
@@ -95,6 +99,7 @@ impl CredentialApi for Cred {
             &target_alias,
             &comment,
             secret,
+            &self.persistence,
         )
     }
 
@@ -115,7 +120,10 @@ impl CredentialApi for Cred {
 
     /// See the keyring-core API docs.
     fn update_attributes(&self, attributes: &HashMap<&str, &str>) -> Result<()> {
-        let new = parse_attributes(&["username", "target_alias", "comment"], Some(attributes))?;
+        let new = parse_attributes(
+            &["username", "target_alias", "comment", "persistence"],
+            Some(attributes),
+        )?;
         let old = self.get_attributes()?;
         let username = new
             .get("username")
@@ -129,6 +137,10 @@ impl CredentialApi for Cred {
             .get("comment")
             .cloned()
             .unwrap_or_else(|| old["comment"].clone());
+        let persistence = new
+            .get("persistence")
+            .cloned()
+            .unwrap_or_else(|| old["persistence"].clone());
         validate_attributes(&username, &target_alias, &comment)?;
         let mut secret = self.get_secret()?;
         let result = save_credential(
@@ -137,6 +149,7 @@ impl CredentialApi for Cred {
             &target_alias,
             &comment,
             &secret,
+            &persistence.as_str().parse()?,
         );
         // erase the copy of the secret
         secret.zeroize();
@@ -152,8 +165,14 @@ impl CredentialApi for Cred {
     ///
     /// No ambiguity, so every wrap is its own wrapper
     fn get_credential(&self) -> Result<Option<Arc<Credential>>> {
-        self.get_attributes()?;
-        Ok(None)
+        let persistence: CredPersist = self.get_attributes()?["persistence"].parse()?;
+        if self.persistence == persistence {
+            Ok(None)
+        } else {
+            let mut new = self.clone();
+            new.persistence = persistence;
+            Ok(Some(Arc::new(new)))
+        }
     }
 
     /// See the keyring-core API docs.

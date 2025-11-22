@@ -402,7 +402,71 @@ fn test_simultaneous_multiple_create_delete_single_thread() {
 }
 
 #[test]
-fn test_persistence() {
+fn test_credential_persistence() {
+    let store: Arc<CredentialStore> = Store::new().unwrap();
+    let name = generate_random_string();
+    let persist_local = HashMap::from([("persistence", "local")]);
+    let persist_session = HashMap::from([("persistence", "session")]);
+    store
+        .build(
+            &name,
+            "illegal",
+            Some(&HashMap::from([("persistence", "wow")])),
+        )
+        .unwrap_err();
+    let default = store.build(&name, "enterprise", None).unwrap();
+    default.set_password("enterprise").unwrap();
+    assert_eq!(
+        default.get_attributes().unwrap()["persistence"],
+        "Enterprise"
+    );
+    let session = store
+        .build(&name, "session", Some(&persist_session))
+        .unwrap();
+    session.set_password("session").unwrap();
+    assert_eq!(session.get_attributes().unwrap()["persistence"], "Session");
+    let local = store.build(&name, "local", Some(&persist_local)).unwrap();
+    local.set_password("local").unwrap();
+    assert_eq!(local.get_attributes().unwrap()["persistence"], "Local");
+    let mock_session = store.build(&name, "session", None).unwrap();
+    assert_eq!(mock_session.get_password().unwrap(), "session");
+    assert_eq!(
+        mock_session.get_attributes().unwrap()["persistence"],
+        "Session"
+    );
+    mock_session.set_password("enterprise").unwrap();
+    assert_eq!(
+        mock_session.get_attributes().unwrap()["persistence"],
+        "Enterprise"
+    );
+    assert_eq!(session.get_password().unwrap(), "enterprise");
+    assert_eq!(
+        session.get_attributes().unwrap()["persistence"],
+        "Enterprise"
+    );
+    local
+        .update_attributes(&HashMap::from([("persistence", "Enterprise")]))
+        .unwrap();
+    assert_eq!(local.get_attributes().unwrap()["persistence"], "Enterprise");
+    assert_ne!(
+        local.as_any().downcast_ref::<Cred>().unwrap().persistence,
+        local
+            .get_credential()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<Cred>()
+            .unwrap()
+            .persistence
+    );
+    assert_eq!(local.get_password().unwrap(), "local");
+    mock_session.delete_credential().unwrap();
+    session.delete_credential().unwrap_err();
+    local.delete_credential().unwrap();
+    default.delete_credential().unwrap();
+}
+
+#[test]
+fn test_store_persistence() {
     let store: Arc<CredentialStore> = Store::new().unwrap();
     assert!(matches!(
         store.persistence(),

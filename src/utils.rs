@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::iter::once;
-use std::str;
 
 use byteorder::{ByteOrder, LittleEndian};
 use windows_sys::Win32::Foundation::{
@@ -9,12 +8,47 @@ use windows_sys::Win32::Foundation::{
 };
 use windows_sys::Win32::Security::Credentials::{
     CRED_FLAGS, CRED_MAX_CREDENTIAL_BLOB_SIZE, CRED_MAX_GENERIC_TARGET_NAME_LENGTH,
-    CRED_MAX_STRING_LENGTH, CRED_MAX_USERNAME_LENGTH, CRED_PERSIST_ENTERPRISE, CRED_TYPE_GENERIC,
-    CREDENTIAL_ATTRIBUTEW, CREDENTIALW, CredDeleteW, CredFree, CredReadW, CredWriteW,
+    CRED_MAX_STRING_LENGTH, CRED_MAX_USERNAME_LENGTH, CRED_PERSIST, CRED_PERSIST_ENTERPRISE,
+    CRED_PERSIST_LOCAL_MACHINE, CRED_PERSIST_SESSION, CRED_TYPE_GENERIC, CREDENTIAL_ATTRIBUTEW,
+    CREDENTIALW, CredDeleteW, CredFree, CredReadW, CredWriteW,
 };
 use zeroize::Zeroize;
 
 use keyring_core::error::{Error, Result};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[repr(u32)]
+pub enum CredPersist {
+    Session = CRED_PERSIST_SESSION,
+    Local = CRED_PERSIST_LOCAL_MACHINE,
+    Enterprise = CRED_PERSIST_ENTERPRISE,
+}
+
+impl std::fmt::Display for CredPersist {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            CredPersist::Session => "Session",
+            CredPersist::Local => "Local",
+            CredPersist::Enterprise => "Enterprise",
+        })
+    }
+}
+
+impl std::str::FromStr for CredPersist {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "session" => Ok(CredPersist::Session),
+            "local" => Ok(CredPersist::Local),
+            "enterprise" => Ok(CredPersist::Enterprise),
+            _ => Err(Error::Invalid(
+                s.to_string(),
+                "must be Session, Local, or Enterprise".to_string(),
+            )),
+        }
+    }
+}
 
 pub fn validate_target(target: &str, user: &str) -> Result<()> {
     if user.len() > CRED_MAX_USERNAME_LENGTH as usize {
@@ -94,6 +128,7 @@ pub fn save_credential(
     target_alias: &str,
     comment: &str,
     secret: &[u8],
+    persistence: &CredPersist,
 ) -> Result<()> {
     let mut username = to_wstr(user);
     let mut target_name = to_wstr(target_name);
@@ -103,7 +138,7 @@ pub fn save_credential(
     let blob_len = blob.len() as u32;
     let flags = CRED_FLAGS::default();
     let cred_type = CRED_TYPE_GENERIC;
-    let persist = CRED_PERSIST_ENTERPRISE;
+    let persist = persistence.clone() as CRED_PERSIST;
     // Ignored by CredWriteW
     let last_written = FILETIME {
         dwLowDateTime: 0,
@@ -223,6 +258,14 @@ pub fn extract_attributes(credential: &CREDENTIALW) -> Result<HashMap<String, St
         ("comment".to_string(), unsafe {
             from_wstr(credential.Comment)
         }),
+        (
+            "persistence".to_string(),
+            match credential.Persist {
+                CRED_PERSIST_SESSION => CredPersist::Session.to_string(),
+                CRED_PERSIST_LOCAL_MACHINE => CredPersist::Local.to_string(),
+                _ => CredPersist::Enterprise.to_string(),
+            },
+        ),
     ]);
     Ok(result)
 }
