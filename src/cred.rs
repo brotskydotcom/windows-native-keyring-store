@@ -16,6 +16,9 @@ use crate::utils::{
     validate_target,
 };
 
+/// Cred specifies or wraps a generic credential.
+/// Whether it's a specifier or wrapper depends on the specifiers field,
+/// which is a tuple <service, user> or `None`.
 #[derive(Debug, Clone)]
 pub(crate) struct Cred {
     pub target_name: String,

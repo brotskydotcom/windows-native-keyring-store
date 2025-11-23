@@ -1,7 +1,7 @@
+use byteorder::{ByteOrder, LittleEndian};
 use std::collections::HashMap;
 use std::iter::once;
 
-use byteorder::{ByteOrder, LittleEndian};
 use windows_sys::Win32::Foundation::{
     ERROR_BAD_USERNAME, ERROR_INVALID_FLAGS, ERROR_INVALID_PARAMETER, ERROR_NO_SUCH_LOGON_SESSION,
     ERROR_NOT_FOUND, FILETIME, GetLastError,
@@ -10,10 +10,11 @@ use windows_sys::Win32::Security::Credentials::{
     CRED_FLAGS, CRED_MAX_CREDENTIAL_BLOB_SIZE, CRED_MAX_GENERIC_TARGET_NAME_LENGTH,
     CRED_MAX_STRING_LENGTH, CRED_MAX_USERNAME_LENGTH, CRED_PERSIST, CRED_PERSIST_ENTERPRISE,
     CRED_PERSIST_LOCAL_MACHINE, CRED_PERSIST_SESSION, CRED_TYPE_GENERIC, CREDENTIAL_ATTRIBUTEW,
-    CREDENTIALW, CredDeleteW, CredFree, CredReadW, CredWriteW,
+    CREDENTIALW, CredDeleteW, CredEnumerateW, CredFree, CredReadW, CredWriteW,
 };
 use zeroize::Zeroize;
 
+use crate::cred::Cred;
 use keyring_core::error::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,6 +181,45 @@ pub fn delete_credential(target_name: &str) -> Result<()> {
     }
 }
 
+/// Enumerate generic credentials
+pub fn enumerate_credentials(
+    pattern: Option<regex::Regex>,
+    delimiters: &[String; 3],
+) -> Result<Vec<Cred>> {
+    let spec = format!(
+        "^{}(.*){}(.*){}$",
+        regex::escape(&delimiters[0]),
+        regex::escape(&delimiters[1]),
+        regex::escape(&delimiters[2])
+    );
+    let spec_pat = regex::Regex::new(&spec).unwrap();
+    let mut count: u32 = 0;
+    let mut creds = std::ptr::null_mut();
+    if unsafe { CredEnumerateW(std::ptr::null(), 0, &mut count, &mut creds) } == 0 {
+        return match decode_error() {
+            Error::NoEntry => Ok(Vec::new()),
+            err => Err(err),
+        };
+    }
+    let slice = unsafe { std::slice::from_raw_parts(creds, count as usize) };
+    let mut result = Vec::new();
+    for cred in slice {
+        let mut candidate = cred_from_credential(&mut unsafe { **cred });
+        if let Some(pat) = &pattern {
+            if !pat.is_match(&candidate.target_name) {
+                continue;
+            }
+        }
+        if let Some(captures) = spec_pat.captures(&candidate.target_name) {
+            // user comes first, service second in the target name. Specifiers are the other way.
+            candidate.specifiers = Some((captures[2].to_string(), captures[1].to_string()))
+        }
+        result.push(candidate)
+    }
+    unsafe { CredFree(creds as *mut std::ffi::c_void) };
+    Ok(result)
+}
+
 /// Run a function over a generic credential to extract data from it.
 pub fn extract_from_credential<F, T>(target_name: &str, f: F) -> Result<T>
 where
@@ -207,6 +247,24 @@ where
             unsafe { CredFree(p_credential as *mut _) };
             result
         }
+    }
+}
+
+/// get a Cred from a native credential
+pub fn cred_from_credential(credential: &mut CREDENTIALW) -> Cred {
+    erase_secret(credential); // erase the secret, so it won't be leaked into the heap
+    let persistence = match credential.Persist {
+        CRED_PERSIST_SESSION => CredPersist::Session,
+        CRED_PERSIST_LOCAL_MACHINE => CredPersist::Local,
+        _ => CredPersist::Enterprise,
+    };
+    let target_name = unsafe { from_wstr(credential.TargetName) };
+    let user = unsafe { from_wstr(credential.UserName) };
+    Cred {
+        target_name,
+        user,
+        specifiers: None,
+        persistence,
     }
 }
 
