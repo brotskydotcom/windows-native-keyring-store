@@ -4,6 +4,7 @@ use std::sync::{Arc, Once};
 use crate::Store;
 use crate::cred::Cred;
 use crate::utils::{validate_attributes, validate_target};
+use keyring_core::api::CredentialApi;
 use keyring_core::{CredentialStore, Entry, Error, api::CredentialPersistence, get_default_store};
 use windows_sys::Win32::Security::Credentials::{
     CRED_MAX_GENERIC_TARGET_NAME_LENGTH, CRED_MAX_STRING_LENGTH, CRED_MAX_USERNAME_LENGTH,
@@ -34,14 +35,14 @@ fn test_store_methods() {
 
 fn entry_new(service: &str, user: &str) -> Entry {
     SET_STORE.call_once(usually_goes_in_main);
-    Entry::new(service, user).unwrap_or_else(|err| {
+    Entry::new(&format!("test-{service}"), user).unwrap_or_else(|err| {
         panic!("Couldn't create entry (service: {service}, user: {user}): {err:?}")
     })
 }
 
 fn entry_new_with_modifiers(service: &str, user: &str, modifiers: &HashMap<&str, &str>) -> Entry {
     SET_STORE.call_once(usually_goes_in_main);
-    Entry::new_with_modifiers(service, user, modifiers).unwrap_or_else(|err| {
+    Entry::new_with_modifiers(&format!("test-{service}"), user, modifiers).unwrap_or_else(|err| {
         panic!("Couldn't create entry (service: {service}, user: {user}, modifiers: {modifiers:?}): {err:?})")
     })
 }
@@ -263,7 +264,7 @@ fn test_get_credential_and_specifiers() {
     let cred2 = wrapper.as_any().downcast_ref::<Cred>().unwrap();
     assert_eq!(cred1 as *const _, cred2 as *const _);
     let (service, user) = wrapper.get_specifiers().unwrap();
-    assert_eq!(service, name1);
+    assert_eq!(service, format!("test-{name1}"));
     assert_eq!(user, name2);
     entry1.delete_credential().unwrap();
     wrapper.delete_credential().unwrap_err();
@@ -469,6 +470,33 @@ fn test_credential_persistence() {
     session.delete_credential().unwrap_err();
     local.delete_credential().unwrap();
     default.delete_credential().unwrap();
+}
+
+#[test]
+fn test_search() {
+    let name = generate_random_string();
+    let entry = entry_new("search entry", &name);
+    entry.set_password("test search entry").unwrap();
+    let entries = Entry::search(&HashMap::from([("pattern", "test-")])).unwrap();
+    entry.delete_credential().unwrap();
+    assert!(!entries.is_empty());
+    println!("Found {} test entries:", entries.len());
+    let mut found = false;
+    for e in entries {
+        let cred: &Cred = e.as_any().downcast_ref().unwrap();
+        match cred.get_specifiers() {
+            None => panic!("All test entries should have specifiers"),
+            Some(specs) => {
+                if specs.0.ends_with("search entry") && specs.1 == name {
+                    found = true;
+                    println!("\t{specs:?} (test target)");
+                } else {
+                    println!("\t{specs:?}");
+                }
+            }
+        }
+    }
+    assert!(found, "We didn't find the test search entry");
 }
 
 #[test]

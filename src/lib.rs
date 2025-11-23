@@ -58,6 +58,20 @@ All four attributes on existing credentials can be read and set using the
 [get_attributes](keyring_core::Entry::get_attributes) and
 [update_attributes](keyring_core::Entry::update_attributes) methods.
 
+## Search
+
+This credential store module supports searching for existing credentials.
+You can (optionally) specify a regular-expression pattern to be matched against each
+credential's `target_name`. If you don't specify a pattern, all existing
+generic credentials are returned.
+
+The entries returned from search are all wrappers, of course, but if the
+wrapped credential *can* be specified by the store being searched, then
+the return entry will also be a specifier. But recall that each store can
+have its own conventions for delimiters used when forming the `target_name`.
+Thus, a search in one store may return a wrapper/specifier for an existing credential
+but that same search in another store may return a wrapper that is *not* a specifier.
+
 ## Warnings
 
 Tests show that operating on the same entry from different threads
